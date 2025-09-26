@@ -1,7 +1,7 @@
 module.exports =
   pkg:
     name: 'wordcloud', version: '0.0.1'
-    extend: {name: "base", version: "0.0.1"}
+    extend: {name: "@makechart/base"}
     dependencies: [
       {url: "https://unpkg.com/d3-cloud@1.2.5/build/d3.layout.cloud.js"}
       {name: "@xlfont/load", version: "main"}
