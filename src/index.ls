@@ -1,9 +1,11 @@
 module.exports =
   pkg:
     name: 'wordcloud', version: '0.0.1'
-    extend: {name: "@makechart/base"}
+    # lite: 不帶 d3 的 base ( 見 @plotdb/chart utils )
+    extend: {name: "@makechart/base", path: "lite/index.html"}
+    # d3-cloud 的 build 已內含 d3-dispatch, 不需要 d3 core
     dependencies: [
-      {url: "https://unpkg.com/d3-cloud@1.2.5/build/d3.layout.cloud.js"}
+      {name: "d3-cloud", version: "1.2.5", path: "build/d3.layout.cloud.js", async: false}
       {name: "@xlfont/load", version: "main"}
     ]
 
@@ -12,7 +14,18 @@ module.exports =
       .then ~> it.0
 
 mod = ({ctx, root}) ->
-  {d3, forceBoundary, ldcolor, chart, xfl} = ctx
+  {d3, ldcolor, chart, xfl} = ctx
+  {scale: Scale, color: {turbo, discrete}, anim: {join}} = chart.utils
+  # 同 d3.randomLcg ( 移植自 d3-random, ISC )
+  lcg = (seed) ->
+    [mul, inc, eps] = [0x19660D, 0x3C6EF35F, 1 / 0x100000000]
+    state = (if 0 <= seed and seed < 1 => seed / eps else Math.abs(seed)) .|. 0
+    -> eps * ((state := (mul * state + inc) .|. 0) .>>>. 0)
+  # 同 d3.extent: 略過 null / NaN
+  extent = (list) ->
+    vs = list.filter -> it? and +it >= +it
+    if vs.length => [vs.reduce(((a,b) -> if b < a => b else a)), vs.reduce(((a,b) -> if b > a => b else a))]
+    else [undefined, undefined]
   sample: ->
     raw: <[cover scandal seem consumption garbage hunter
       pepper west guilt conspiracy pupil boat muscle nightmare gene
@@ -43,6 +56,8 @@ mod = ({ctx, root}) ->
     text: {type: \NCO, name: "name"}
 
   init: ->
+    # 沒有 layout 時 svg 接在 base 的 layout 區塊後面, 會被擠到可視範圍外; 疊回左上角
+    @svg.style <<< position: \absolute, left: 0, top: 0
     @tint = tint = new chart.utils.tint!
     @cloud = d3.layout.cloud!
     @cloud
@@ -53,7 +68,7 @@ mod = ({ctx, root}) ->
       .rotate ~>
         a = @cfg.cloud.rotate.angle or 0
         v = @cfg.cloud.rotate.variant or 0
-        a + v * (Math.random! * 2 - 1)
+        a + v * (@rng! * 2 - 1)
       .padding 2
       .fontSize ~> @cfg.font.size * it.value
       .on \end, ~> @render!
@@ -70,7 +85,6 @@ mod = ({ctx, root}) ->
     @_max = Math.max.apply Math, @parsed.map -> it.value
     @parsed.map ~> it.value = it.value / @_max
 
-    if @cfg.font.family => console.log @cfg.font.family.isXl
     if @cfg.font.family and @cfg.font.family.isXl =>
       if !(font = @fonts.h[@cfg.font.family.path]) =>
         @fonts.h[@cfg.font.family.path] = {loading: true}
@@ -88,28 +102,29 @@ mod = ({ctx, root}) ->
             @render!
 
   resize: ->
+    # 排版與旋轉用固定種子的亂數: 同樣的資料與設定每次排出一樣的結果 ( 原本用 Math.random, 每次重排都不同 )
+    @rng = lcg 1
     @cloud
+      .random @rng
       .size([@box.width, @box.height].map -> Math.round it)
       .words @parsed
       .font @fonts.name!
       .start!
-    @tint.set @cfg.palette.colors
+    if @cfg.palette => @tint.set @cfg.palette.colors
   render: ->
-    color = d3.interpolateTurbo
+    color = turbo
     if @cfg? and @cfg.palette =>
-      color = d3.interpolateDiscrete @cfg.palette.colors.map -> ldcolor.web(it.value or it)
-    vext = d3.extent @parsed.map -> it.value
-    vscale = d3.scaleLinear!domain vext .range [0,1]
-    d3.select @svg .selectAll \text .data @parsed
-      ..exit!remove!
-      ..enter!append \text
-    d3.select @svg .selectAll \text
-      .attr \transform, ~> "translate(#{it.x + @box.width / 2} #{it.y + @box.height / 2}) rotate(#{it.rotate})"
-      .attr \text-anchor, \middle
-      .attr \font-size, -> it.size
-      .attr \font-family, @fonts.name!
-      .attr \fill, ~>
-        if @cfg.color.random => @tint.get it.text
-        else color vscale it.value
-      .text -> it.text
+      color = discrete @cfg.palette.colors.map -> ldcolor.web(it.value or it)
+    vext = extent @parsed.map -> it.value
+    vscale = Scale.linear!domain vext .range [0,1]
+    tj = join root: @svg, tag: \text, data: @parsed
+    tj.exit.map -> it.remove!
+    Array.from(@svg.querySelectorAll ':scope > text').map (n) ~>
+      d = n.__data__
+      n.setAttribute \transform, "translate(#{d.x + @box.width / 2} #{d.y + @box.height / 2}) rotate(#{d.rotate})"
+      n.setAttribute \text-anchor, \middle
+      n.setAttribute \font-size, d.size
+      n.setAttribute \font-family, @fonts.name!
+      n.setAttribute \fill, if @cfg.color.random => @tint.get d.text else color vscale d.value
+      n.textContent = d.text
   tick: ->
