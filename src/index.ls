@@ -51,6 +51,11 @@ mod = ({ctx, root}) ->
         angle: type: \number, default: 0, min: 0 max: 360, step: 0.1, desc: {en: "base rotation of the words ( degrees )", "zh-TW": "文字的基本旋轉角度 ( 度 )"}
         variant: type: \number, default: 0, min: 0, max: 180, step: 0.1, desc: {en: "each word is rotated by a random extra angle within plus or minus this value ( degrees )", "zh-TW": "每個詞再隨機多轉正負這個角度以內 ( 度 )"}
 
+  # 段落 ( tab ) 的說明, key 是段落的路徑. preset 的段落由 chart.utils.config.tabinfo 掛上來, 共用的 common 由核心補
+  tabinfo:
+    color: desc: {en: "how the words are colored", "zh-TW": "文字的上色方式"}
+    cloud: desc: {en: "how the words are laid out in the cloud", "zh-TW": "文字雲裡文字的排列"}
+    "cloud/rotate": desc: {en: "how much the words are rotated", "zh-TW": "文字的旋轉角度"}
   dimension:
     value: {type: \R, name: "size"}
     text: {type: \NCO, name: "name"}
