@@ -39,17 +39,17 @@ mod = ({ctx, root}) ->
       text: {key: \text}
 
   config:
-    palette: type: \palette
+    palette: type: \palette, desc: {en: "colors of the words, picked by each word's value; without one, a rainbow scale is used", "zh-TW": "文字的配色，依各個詞的數值取色；沒有設定時使用彩虹色階"}
     color:
-      random: type: \boolean, default: false
+      random: type: \boolean, default: false, desc: {en: "color each word by its text instead of its value", "zh-TW": "依詞的文字決定顏色，而不是依數值"}
     background: type: \color
     font:
-      size: type: \number, min: 1, max: 256, step: 1, default: 64
+      size: type: \number, min: 1, max: 256, step: 1, default: 64, desc: {en: "font size of the largest word; others scale with the square root of their value ( px )", "zh-TW": "最大的詞的字級，其它詞依數值的平方根等比縮小 ( px )"}
       family: type: \font
     cloud:
       rotate:
-        angle: type: \number, default: 0, min: 0 max: 360, step: 0.1
-        variant: type: \number, default: 0, min: 0, max: 180, step: 0.1
+        angle: type: \number, default: 0, min: 0 max: 360, step: 0.1, desc: {en: "base rotation of the words ( degrees )", "zh-TW": "文字的基本旋轉角度 ( 度 )"}
+        variant: type: \number, default: 0, min: 0, max: 180, step: 0.1, desc: {en: "each word is rotated by a random extra angle within plus or minus this value ( degrees )", "zh-TW": "每個詞再隨機多轉正負這個角度以內 ( 度 )"}
 
   dimension:
     value: {type: \R, name: "size"}
