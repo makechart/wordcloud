@@ -1,6 +1,8 @@
 # wordcloud 的 test case ( @makechart/viewer 的 mctest )
 words = <[cover scandal seem consumption garbage hunter pepper west guilt conspiracy pupil boat muscle
   nightmare gene royalty salon difficult management brainstorm aid moving plaster cake issue realism]>
+small = <[pebble lantern orbit velvet meadow thistle ember quill harbor cinder willow fable prism nectar ripple
+  sparrow cobalt dune juniper lattice marble nimbus oyster parcel quartz saffron tundra umbra vessel walnut]>
 mk = (n) -> raw: words.slice(0, n).map((text, i) -> {text, value: 1.5 * i + 10}), binding: {value: {key: \value}, text: {key: \text}}
 # 排版是非同步的 ( d3-cloud 的 timer ), 等它跑完
 layout = (c, ctx) -> ctx.wait 1500
@@ -10,9 +12,16 @@ mctest.suite do
   data:
     many: mk 26
     few: mk 6
+    # 大字加上一堆數值很小的字
+    mixed: do
+      raw: mk(26).raw ++ small.map((text, i) -> {text, value: 1 + (i % 5) * 0.5})
+      binding: {value: {key: \value}, text: {key: \text}}
   cases:
     * name: "many", data: \many, steps: layout
     * name: "few", data: \few, steps: layout
+    * name: "small-words", data: \mixed, steps: layout
+    * name: "margin", data: \many, config: {margin: 60}, steps: layout
+    * name: "padding", data: \many, config: {cloud: {padding: 10}}, steps: layout
     * name: "font-size", data: \many, config: {font: {size: 40}}, steps: layout
     * name: "rotate", data: \many, config: {cloud: {rotate: {angle: 30, variant: 30}}}, steps: layout
     * name: "random-color", data: \few, config: {color: {random: true}}, steps: layout

@@ -26,14 +26,27 @@ mod = ({ctx, root}) ->
     vs = list.filter -> it? and +it >= +it
     if vs.length => [vs.reduce(((a,b) -> if b < a => b else a)), vs.reduce(((a,b) -> if b > a => b else a))]
     else [undefined, undefined]
+  # 扣掉 margin 後的排版範圍
+  area = ({cfg, box}) ->
+    m = Math.max(0, +cfg.margin or 0)
+    {m, width: Math.max(0, box.width - 2 * m), height: Math.max(0, box.height - 2 * m)}
   sample: ->
-    raw: <[cover scandal seem consumption garbage hunter
-      pepper west guilt conspiracy pupil boat muscle nightmare gene
-      royalty salon difficult management brainstorm aid moving plaster
-      cake issue realism subject speed railcar break grass collapse
-      is leave retiree looting transaction copyright serve guard
-      colony spell ask ranch cell sensation name default reflection
-    ]>.map (d, i) -> {text: d, value: 1.5 * i + 10}
+    # 少數大字 + 一堆小字
+    raw: <[cover scandal seem consumption garbage hunter pepper west guilt conspiracy
+    ]>.map((d, i) -> {text: d, value: 8 * i + 10}) ++ <[
+      pupil boat muscle nightmare gene royalty salon difficult management brainstorm
+      aid moving plaster cake issue realism subject speed railcar break
+      grass collapse is leave retiree looting transaction copyright serve guard
+      colony spell ask ranch cell sensation name default reflection pebble
+      lantern orbit velvet meadow thistle ember quill harbor cinder willow
+      fable prism nectar ripple sparrow cobalt dune juniper lattice marble
+      nimbus oyster parcel quartz saffron tundra umbra vessel walnut yarrow
+      zephyr anchor bramble canopy delta fern glacier hollow ivory jasmine
+      kettle lagoon mosaic nutmeg opal pylon quiver raven sable timber
+      upland violet wander xenon yonder zenith amber beacon cobble drift
+      echo flint garnet heron inlet jetty kelp linen mango nomad
+      olive pixel quokka relic shale tango ultra vapor wisp yodel
+    ]>.map (d, i) -> {text: d, value: 1 + (i % 7) * 0.4}
     binding:
       value: {key: \value}
       text: {key: \text}
@@ -42,14 +55,17 @@ mod = ({ctx, root}) ->
     palette: type: \palette, desc: {en: "colors of the words, picked by each word's value; without one, a rainbow scale is used", "zh-TW": "文字的配色，依各個詞的數值取色；沒有設定時使用彩虹色階"}
     color:
       random: type: \boolean, default: false, desc: {en: "color each word by its text instead of its value", "zh-TW": "依詞的文字決定顏色，而不是依數值"}
-    background: type: \color
+    background: type: \color, default: \#fff
+    # base 會把它設成 root 的 padding; 排版時另外扣掉 ( svg 疊在左上角, 不受 padding 影響 )
+    margin: type: \number, default: 0, min: 0, max: 200, step: 1, desc: {en: "space around the chart, in px", "zh-TW": "圖表四周的留白 ( px )"}
     font:
       size: type: \number, min: 1, max: 256, step: 1, default: 64, desc: {en: "font size of the largest word; others scale with the square root of their value ( px )", "zh-TW": "最大的詞的字級，其它詞依數值的平方根等比縮小 ( px )"}
       family: type: \font
     cloud:
+      padding: type: \number, default: 2, min: 0, max: 50, step: 1, desc: {en: "space between the words ( px )", "zh-TW": "詞與詞之間的間距 ( px )"}
       rotate:
         angle: type: \number, default: 0, min: 0 max: 360, step: 0.1, desc: {en: "base rotation of the words ( degrees )", "zh-TW": "文字的基本旋轉角度 ( 度 )"}
-        variant: type: \number, default: 0, min: 0, max: 180, step: 0.1, desc: {en: "each word is rotated by a random extra angle within plus or minus this value ( degrees )", "zh-TW": "每個詞再隨機多轉正負這個角度以內 ( 度 )"}
+        variant: type: \number, default: 15, min: 0, max: 180, step: 0.1, desc: {en: "each word is rotated by a random extra angle within plus or minus this value ( degrees )", "zh-TW": "每個詞再隨機多轉正負這個角度以內 ( 度 )"}
 
   # 段落 ( tab ) 的說明, key 是段落的路徑. preset 的段落由 chart.utils.config.tabinfo 掛上來, 共用的 common 由核心補
   tabinfo:
@@ -74,9 +90,11 @@ mod = ({ctx, root}) ->
         a = @cfg.cloud.rotate.angle or 0
         v = @cfg.cloud.rotate.variant or 0
         a + v * (@rng! * 2 - 1)
-      .padding 2
       .fontSize ~> @cfg.font.size * it.value
-      .on \end, ~> @render!
+      # 只畫排得進去的詞 ( end 給的 ), 排不進去的不畫; 不然會用上一次嘗試留下的座標畫到框外
+      .on \end, (words) ~>
+        @placed = words
+        @render!
     @fonts =
       h: {},
       active: null
@@ -111,7 +129,8 @@ mod = ({ctx, root}) ->
     @rng = lcg 1
     @cloud
       .random @rng
-      .size([@box.width, @box.height].map -> Math.round it)
+      .padding Math.max(0, +@cfg.cloud.padding or 0)
+      .size([area(@).width, area(@).height].map -> Math.round it)
       .words @parsed
       .font @fonts.name!
       .start!
@@ -122,11 +141,12 @@ mod = ({ctx, root}) ->
       color = discrete @cfg.palette.colors.map -> ldcolor.web(it.value or it)
     vext = extent @parsed.map -> it.value
     vscale = Scale.linear!domain vext .range [0,1]
-    tj = join root: @svg, tag: \text, data: @parsed
+    {m, width, height} = area @
+    tj = join root: @svg, tag: \text, data: (@placed or [])
     tj.exit.map -> it.remove!
     Array.from(@svg.querySelectorAll ':scope > text').map (n) ~>
       d = n.__data__
-      n.setAttribute \transform, "translate(#{d.x + @box.width / 2} #{d.y + @box.height / 2}) rotate(#{d.rotate})"
+      n.setAttribute \transform, "translate(#{d.x + m + width / 2} #{d.y + m + height / 2}) rotate(#{d.rotate})"
       n.setAttribute \text-anchor, \middle
       n.setAttribute \font-size, d.size
       n.setAttribute \font-family, @fonts.name!
